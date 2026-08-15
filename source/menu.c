@@ -41,6 +41,7 @@ static void Tick(AppType * app);
 static void EventHandler(AppType * app, XEvent * event);
 static void DrawTypewriterIcon(AppType * app, int x, int y, int w);
 static void DrawPongIcon(AppType * app, int x, int y, int w);
+static void DrawJumpIcon(AppType * app, int x, int y, int w);
 static void DrawLabel(AppType * app, int x, int y, char * text);
 
 const AppStaticType Menu = {
@@ -61,7 +62,7 @@ static void Init(AppType * app) {
     data->margin = app->height / 10;
     data->padding = app->height / 20;
     data->rows = 1;
-    data->cols = 2;
+    data->cols = 3;
 
     int outer_w = (app->width - ((data->cols - 1) * data->margin)) / (data->cols + 1);
     int outer_h = (app->height - ((data->rows - 1) * data->margin)) / (data->rows + 1);
@@ -85,6 +86,8 @@ static void Init(AppType * app) {
     DrawLabel(app, data->offs_x + label_x, data->offs_y + label_y, "T");
     DrawPongIcon(app, data->offs_x + data->width + icon_offs_x + data->margin, data->offs_y + icon_offs_y, icon_size);
     DrawLabel(app, data->offs_x + data->width + data->margin + label_x, data->offs_y + label_y, "P");
+    DrawJumpIcon(app, data->offs_x + (data->width*2) + icon_offs_x + data->margin, data->offs_y + icon_offs_y, icon_size);
+    DrawLabel(app, data->offs_x + (data->width*2) + data->margin + label_x, data->offs_y + label_y, "J");
 
     XSetForeground(app->display, data->gc, COMMENT_COLOR);
     XSetFont(app->display, data->gc, app->smallfont.id);
@@ -117,6 +120,9 @@ static void EventHandler(AppType * app, XEvent * event) {
         }
         else if (k == 'p') {
             SwitchApp(app, &Pong);
+        }
+        else if (k == 'j') {
+            SwitchApp(app, &Jump);
         }
     }
 }
@@ -158,6 +164,12 @@ static void DrawPongIcon(AppType * app, int x, int y, int w) {
     XFillRectangle(app->display, app->window, data->gc, offs_x + (18*px), offs_y + (5*px), 2*px, 6*px);
 
     XFillRectangle(app->display, app->window, data->gc, offs_x + (5*px), offs_y + (3*px), 2*px, 2*px);
+}
+
+static void DrawJumpIcon(AppType * app, int x, int y, int w) {
+    // creates a rectangular icon (20x14 "pixels")
+    // x and y specify the upper left corner
+    AppDataType * data = (AppDataType *)app->data;
 }
 
 static void DrawLabel(AppType * app, int x, int y, char * text) {
