@@ -24,15 +24,26 @@ You should have received a copy of the GNU General Public License along with Mer
 #include "applications.h"
 
 
-static int Init(AppType * app);
+static int Init(AppType * app, int w, int h);
 static void Run(AppType * app);
 static void Destroy(AppType * app);
 
 
-int main(void) {
+int main(int argc, char *argv[]) {
     AppType app;
+    int w = -1;
+    int h = -1;
+    int count;
 
-    if (Init(&app) == 0) {
+    if (argc > 1) {
+        count = sscanf(argv[1], "%dx%d", &w, &h);
+        if (count < 2) {
+            printf("Usage:  merepc [WIDTHxHEIGHT]\n     where WIDTH and HEIGHT are the resolution in pixels (optional)\n");
+            return 1;
+        }
+    }
+
+    if (Init(&app, w, h) == 0) {
         Run(&app);
         Destroy(&app);
     }
@@ -44,7 +55,7 @@ int main(void) {
     return 0;
 }
 
-static int Init(AppType * app) {
+static int Init(AppType * app, int w, int h) {
     // initialize display and root window
 
     app->display = XOpenDisplay(NULL);
@@ -71,10 +82,16 @@ static int Init(AppType * app) {
 
     // set up app window
 
-    XWindowAttributes rootattributes;
-    assert(XGetWindowAttributes(app->display, root, &rootattributes) == True);
-    app->width = rootattributes.width;
-    app->height = rootattributes.height;
+    if (w <= 0 || h <= 0) {
+        XWindowAttributes rootattributes;
+        assert(XGetWindowAttributes(app->display, root, &rootattributes) == True);
+        app->width = rootattributes.width;
+        app->height = rootattributes.height;
+    }
+    else {
+        app->width = w;
+        app->height = h;
+    }
 
     int attributemask = CWBackPixel;
     XSetWindowAttributes attributes = {};
