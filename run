@@ -1,0 +1,4 @@
+#!/bin/sh
+
+xset fp+ $(pwd)/fonts
+./merepc 1600x900
