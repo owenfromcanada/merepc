@@ -47,6 +47,10 @@ typedef struct {
     float jump_gravity; // pixels per frame per frame
     int jump_timeout; // in frames
     int score_y;
+    int eyes_y;
+    int eyes_height;
+    int eyes_x1;
+    int eyes_x2;
     // updated during gameplay
     int time; // in frames
     int vx;
@@ -54,6 +58,7 @@ typedef struct {
     float y;
     int jump_tick;
     int jump_key;
+    int ground_y;
     int ground_height;
     int speck_size;
     int jump_state;
@@ -96,9 +101,14 @@ static void Init(AppType * app) {
     data->jump_velocity = (-2.0F * (float)data->jump_height_min) / JUMP_TIME_TO_PEAK;
     data->jump_gravity = (2.0F * (float)data->jump_height_min) / (JUMP_TIME_TO_PEAK * JUMP_TIME_TO_PEAK);
     data->jump_timeout = (int)((data->jump_height_max - data->jump_height_min) / -data->jump_velocity);
-    data->ground_height = (app->height*19/20) - data->origin_y;
     data->speck_size = (app->height/128);
+    data->ground_y = data->origin_y + data->speck_size;
+    data->ground_height = (app->height*19/20) - data->ground_y;
     data->score_y = app->mediumfont.height*2;
+    data->eyes_height = data->speck_size*2;
+    data->eyes_y = (data->psize/2) + (data->eyes_height/2);
+    data->eyes_x1 = data->origin_x - data->speck_size*2;
+    data->eyes_x2 = data->origin_x - data->speck_size*4;
 
     data->playing = 0;
 
@@ -163,6 +173,7 @@ static void Start(AppType * app) {
     AppDataType * data = (AppDataType *)app->data;
 
     XClearArea(app->display, app->window, 0, 0, app->width, app->height * 19/20, False);
+    XFillRectangle(app->display, app->window, data->gc, 0, data->origin_y, app->width, data->ground_y - data->origin_y);
 
     for (int k = 0; k < NUM_SPECKS; k++) {
         data->specks[k].x = -1;
@@ -197,9 +208,10 @@ static void Frame(AppType * app) {
     }
 
     // clear ground
-    XFillRectangle(app->display, app->window, data->gc, 0, data->origin_y, app->width, data->ground_height);
+    XClearArea(app->display, app->window, 0, data->ground_y, app->width, data->ground_height, False);
 
     // draw specks
+    XSetForeground(app->display, data->gc, COMMENT_COLOR);
     int next = data->speck_end_idx == NUM_SPECKS - 1 ? 0 : data->speck_end_idx + 1;
     if (next != data->speck_start_idx) {
         if ((rand() % 20) < 1) {
@@ -214,9 +226,10 @@ static void Frame(AppType * app) {
             data->speck_start_idx = (data->speck_start_idx + 1) % NUM_SPECKS;
         }
         else {
-            XClearArea(app->display, app->window, data->specks[k].x, data->specks[k].y, data->speck_size, data->speck_size, False);
+            XFillRectangle(app->display, app->window, data->gc, data->specks[k].x, data->specks[k].y, data->speck_size, data->speck_size);
         }
     }
+    XSetForeground(app->display, data->gc, FG_COLOR);
 
     // determine vertical velocity
     if (data->jump_state == 1) {
@@ -244,6 +257,10 @@ static void Frame(AppType * app) {
             data->jump_state = 0;
         }
         XFillRectangle(app->display, app->window, data->gc, data->origin_x - data->psize, data->origin_y + (int)data->y - data->psize, data->psize, data->psize);
+        int eyes_y = data->origin_y + (int)data->y - data->eyes_y + (data->jump_state == 0 ? 0 : (data->vy > 0 ? data->speck_size : -data->speck_size));
+
+        XClearArea(app->display, app->window, data->eyes_x1, eyes_y, data->speck_size, data->eyes_height, False);
+        XClearArea(app->display, app->window, data->eyes_x2, eyes_y, data->speck_size, data->eyes_height, False);
     }
 
     // show score
