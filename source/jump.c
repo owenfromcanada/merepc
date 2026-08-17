@@ -83,6 +83,7 @@ typedef struct {
     int obstacle_start_idx;
     int obstacle_end_idx;
     int stage;
+    int start_lock;
     int playing;
 
 } AppDataType;
@@ -92,7 +93,6 @@ static void Destroy(AppType * app);
 static void Tick(AppType * app);
 static void EventHandler(AppType * app, XEvent * event);
 static void Start(AppType * app);
-static void BeginJump(AppType * app);
 static void Frame(AppType * app);
 static void ShowStartMessage(AppType * app);
 static void DrawText(AppType * app, int x, int y, char * text);
@@ -143,6 +143,7 @@ static void Init(AppType * app) {
         data->obstacle_spacing_jitter[k] = (MAX_OBSTACLE_SPACING[k] - MIN_OBSTACLE_SPACING[k]) * data->psize;
     }
 
+    data->start_lock = 0;
     data->playing = 0;
 
     ShowStartMessage(app);
@@ -184,19 +185,18 @@ static void EventHandler(AppType * app, XEvent * event) {
 
         if (k == ' ') {
             if (event->type == KeyPress) {
-                if (data->playing == 1) {
-                    data->jump_key = 1;
-                    BeginJump(app);
+                data->jump_key = 1;
+                if (data->playing == 1) { 
+                    data->start_lock = 1;
                 }
             }
-            else { // KeyRelease
-                if (data->playing == 0) {
+            else {
+                data->jump_key = 0;
+                if (data->playing == 0 && data->start_lock == 0) {
                     Start(app);
                     XFlush(app->display);
                 }
-                else {
-                    data->jump_key = 0;
-                }
+                data->start_lock = 0;
             }
         }
     }
@@ -228,15 +228,6 @@ static void Start(AppType * app) {
     data->clock = clock();
 }
 
-static void BeginJump(AppType * app) {
-    AppDataType * data = (AppDataType *)app->data;
-
-    if (data->jump_state == 0) {
-        data->jump_tick = 0;
-        data->jump_state = 1;
-    }
-}
-
 static void Frame(AppType * app) {
     AppDataType * data = (AppDataType *)app->data;
     
@@ -260,19 +251,20 @@ static void Frame(AppType * app) {
     }
 
     // determine vertical velocity
-    if (data->jump_state == 1) {
+    if (data->jump_state == 0 && data->jump_key == 1) {
         // initialize jump
         data->vy = data->jump_velocity;
-        data->jump_state = 2;
+        data->jump_tick = 0;
+        data->jump_state = 1;
     }
-    else if (data->jump_state == 2) {
+    else if (data->jump_state == 1) {
         // continue jump if button remains pressed
         data->jump_tick++;
         if (data->jump_tick >= data->jump_timeout || data->jump_key == 0) {
-            data->jump_state = 3;
+            data->jump_state = 2;
         }
     }
-    else if (data->jump_state == 3) {
+    else if (data->jump_state == 2) {
         // gravity takes over
         data->vy += data->jump_gravity;
     }
@@ -323,7 +315,6 @@ static void Frame(AppType * app) {
 
     // update specks
     count = data->speck_end_idx - data->speck_start_idx + (data->speck_end_idx < data->speck_start_idx ? NUM_SPECKS : 0);
-    int next = data->speck_end_idx == NUM_SPECKS - 1 ? 0 : data->speck_end_idx + 1;
     if (count < NUM_SPECKS - 1) {
         // add specks
         if ((rand() % 20) < 1) {
