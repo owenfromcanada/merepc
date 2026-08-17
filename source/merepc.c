@@ -80,6 +80,8 @@ static int Init(AppType * app, int w, int h) {
         return 1;
     }
 
+    XAutoRepeatOff(app->display);
+
     // set up app window
 
     if (w <= 0 || h <= 0) {
