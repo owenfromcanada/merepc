@@ -26,6 +26,8 @@ You should have received a copy of the GNU General Public License along with Mer
 #define CLOCKS_PER_FRAME    (CLOCKS_PER_SEC/FRAMES_PER_SEC)
 #define JUMP_TIME_TO_PEAK   (0.4F * FRAMES_PER_SEC)
 #define NUM_SPECKS          8
+#define NUM_STAGES          5
+#define NUM_OBSTACLES       6
 
 typedef struct {
     int x;
@@ -33,9 +35,15 @@ typedef struct {
 } SpeckType;
 
 typedef struct {
+    int x;
+    int y;
+    int w;
+    int h;
+} ObstacleType;
+
+typedef struct {
     // written once during init
     GC gc;
-    int playing;
     clock_t clock;
     int origin_x;
     int origin_y;
@@ -51,20 +59,32 @@ typedef struct {
     int eyes_height;
     int eyes_x1;
     int eyes_x2;
+    int speck_size;
+    int obstacle_size;
+    int ground_y;
+    int ground_height;
+    int sky_y;
+    int sky_height;
+    int obstacle_spacing_min[NUM_STAGES];
+    int obstacle_spacing_jitter[NUM_STAGES];
     // updated during gameplay
-    int time; // in frames
+    int score_subcount; // frames
+    int score; // seconds
     int vx;
     float vy;
     float y;
     int jump_tick;
     int jump_key;
-    int ground_y;
-    int ground_height;
-    int speck_size;
     int jump_state;
     SpeckType specks[NUM_SPECKS];
     int speck_start_idx;
     int speck_end_idx;
+    ObstacleType obstacles[NUM_OBSTACLES];
+    int obstacle_start_idx;
+    int obstacle_end_idx;
+    int stage;
+    int playing;
+
 } AppDataType;
 
 static void Init(AppType * app);
@@ -83,6 +103,12 @@ const AppStaticType Jump = {
     Tick,
     EventHandler
 };
+
+static const int STAGE_TIME[NUM_STAGES] = {2, 20, 60, 120, 0}; // in seconds
+static const int MAX_OBSTACLE_WIDTH[NUM_STAGES] = {1, 1, 1, 2, 3};
+static const int MAX_OBSTACLE_HEIGHT[NUM_STAGES] = {1, 1, 2, 2, 3};
+static const int MIN_OBSTACLE_SPACING[NUM_STAGES] = {16, 14, 11, 10, 9}; // in units of player width
+static const int MAX_OBSTACLE_SPACING[NUM_STAGES] = {24, 22, 20, 18, 16}; // in units of player width
 
 static void Init(AppType * app) {
     app->data = malloc(sizeof(AppDataType));
@@ -105,10 +131,17 @@ static void Init(AppType * app) {
     data->ground_y = data->origin_y + data->speck_size;
     data->ground_height = (app->height*19/20) - data->ground_y;
     data->score_y = app->mediumfont.height*2;
+    data->sky_y = data->score_y + app->mediumfont.height;
+    data->sky_height = data->origin_y - data->sky_y;
     data->eyes_height = data->speck_size*2;
     data->eyes_y = (data->psize/2) + (data->eyes_height/2);
     data->eyes_x1 = data->origin_x - data->speck_size*2;
     data->eyes_x2 = data->origin_x - data->speck_size*4;
+    data->obstacle_size = data->psize;
+    for (int k = 0; k < NUM_STAGES; k++) {
+        data->obstacle_spacing_min[k] = MIN_OBSTACLE_SPACING[k] * data->psize;
+        data->obstacle_spacing_jitter[k] = (MAX_OBSTACLE_SPACING[k] - MIN_OBSTACLE_SPACING[k]) * data->psize;
+    }
 
     data->playing = 0;
 
@@ -175,19 +208,24 @@ static void Start(AppType * app) {
     XClearArea(app->display, app->window, 0, 0, app->width, app->height * 19/20, False);
     XFillRectangle(app->display, app->window, data->gc, 0, data->origin_y, app->width, data->ground_y - data->origin_y);
 
-    for (int k = 0; k < NUM_SPECKS; k++) {
-        data->specks[k].x = -1;
-        data->specks[k].y = 0;
-    }
+    data->score_subcount = 0;
+    data->score = 0;
+    data->vx = data->base_vx;
+    data->vy = 0.0F;
+    data->y = 0.0F;
+    data->jump_tick = 0;
+    data->jump_state = 3;
     data->speck_start_idx = 0;
     data->speck_end_idx = 0;
-    data->time = 0;
-    data->y = 0.0F;
-    data->vy = 0.0F;
-    data->vx = data->base_vx;
-    data->jump_state = 3;
-    data->clock = clock();
+    data->obstacle_start_idx = 0;
+    data->obstacle_end_idx = 1;
+    data->obstacles[0].x = app->width * 2;
+    data->obstacles[0].y = data->origin_y - data->obstacle_size;
+    data->obstacles[0].w = data->obstacle_size;
+    data->obstacles[0].h = data->obstacle_size;
+    data->stage = 0;
     data->playing = 1;
+    data->clock = clock();
 }
 
 static void BeginJump(AppType * app) {
@@ -201,35 +239,25 @@ static void BeginJump(AppType * app) {
 
 static void Frame(AppType * app) {
     AppDataType * data = (AppDataType *)app->data;
+    
+    int redraw_score = 0;
 
-    // remove old avatar
-    if (data->jump_state != 0) {
-        XClearArea(app->display, app->window, data->origin_x - data->psize, data->origin_y + (int)data->y - data->psize, data->psize, data->psize, False);
-    }
+    // ******************* Game Logic *******************
 
-    // clear ground
-    XClearArea(app->display, app->window, 0, data->ground_y, app->width, data->ground_height, False);
+    // update score
+    data->score_subcount++;
+    if (data->score_subcount >= FRAMES_PER_SEC) {
+        data->score_subcount = 0;
+        if (data->score < 999999999) {
+            data->score++;
+            redraw_score = 1;
+        }
 
-    // draw specks
-    XSetForeground(app->display, data->gc, COMMENT_COLOR);
-    int next = data->speck_end_idx == NUM_SPECKS - 1 ? 0 : data->speck_end_idx + 1;
-    if (next != data->speck_start_idx) {
-        if ((rand() % 20) < 1) {
-            data->specks[next].y = (rand() % (data->ground_height - (data->speck_size * 2))) + data->origin_y + data->speck_size;
-            data->specks[next].x = app->width;
-            data->speck_end_idx = next;
+        // update stage
+        if (data->stage < NUM_STAGES - 1 && data->score >= STAGE_TIME[data->stage]) {
+            data->stage++;
         }
     }
-    for (int k = data->speck_start_idx; k != data->speck_end_idx; k = (k + 1) % NUM_SPECKS) {
-        data->specks[k].x -= data->vx;
-        if (data->specks[k].x < -data->speck_size) {
-            data->speck_start_idx = (data->speck_start_idx + 1) % NUM_SPECKS;
-        }
-        else {
-            XFillRectangle(app->display, app->window, data->gc, data->specks[k].x, data->specks[k].y, data->speck_size, data->speck_size);
-        }
-    }
-    XSetForeground(app->display, data->gc, FG_COLOR);
 
     // determine vertical velocity
     if (data->jump_state == 1) {
@@ -249,27 +277,111 @@ static void Frame(AppType * app) {
         data->vy += data->jump_gravity;
     }
 
-    // draw avatar
+    // update avatar position
     if (data->jump_state != 0) {
+        // move avatar
         data->y += data->vy;
+
+        // check for landing
         if (data->y >= 0.0F) {
             data->y = 0.0F;
             data->jump_state = 0;
         }
-        XFillRectangle(app->display, app->window, data->gc, data->origin_x - data->psize, data->origin_y + (int)data->y - data->psize, data->psize, data->psize);
-        int eyes_y = data->origin_y + (int)data->y - data->eyes_y + (data->jump_state == 0 ? 0 : (data->vy > 0 ? data->speck_size : -data->speck_size));
-
-        XClearArea(app->display, app->window, data->eyes_x1, eyes_y, data->speck_size, data->eyes_height, False);
-        XClearArea(app->display, app->window, data->eyes_x2, eyes_y, data->speck_size, data->eyes_height, False);
     }
 
-    // show score
-    if (data->time < 999999999) {
-        data->time++;
+    // update obstacles
+    int count = data->obstacle_end_idx - data->obstacle_start_idx + (data->obstacle_end_idx < data->obstacle_start_idx ? NUM_OBSTACLES : 0);
+    if (count < NUM_OBSTACLES - 1) {
+        // add obstacles
+        data->obstacles[data->obstacle_end_idx].w = ((rand() % MAX_OBSTACLE_WIDTH[data->stage]) + 1) * data->obstacle_size;
+        data->obstacles[data->obstacle_end_idx].h = ((rand() % MAX_OBSTACLE_HEIGHT[data->stage]) + 1) * data->obstacle_size;
+        data->obstacles[data->obstacle_end_idx].y = data->origin_y - data->obstacles[data->obstacle_end_idx].h;
 
+        int last_x = 0;
+        if (count > 0) {
+            int last = (data->obstacle_end_idx == 0 ? NUM_OBSTACLES - 1 : data->obstacle_end_idx - 1);
+            last_x = data->obstacles[last].x;
+        }
+        data->obstacles[data->obstacle_end_idx].x = last_x + data->obstacle_spacing_min[data->stage] + (rand() % data->obstacle_spacing_jitter[data->stage]);
+        data->obstacle_end_idx = (data->obstacle_end_idx + 1) % NUM_OBSTACLES;
+    }
+    for (int k = data->obstacle_start_idx; k != data->obstacle_end_idx; k = (k + 1) % NUM_OBSTACLES) {
+        // move obstacles
+        data->obstacles[k].x -= data->vx;
+
+        // check for collision
+        if ( (data->obstacles[k].x < data->origin_x) &&
+             (data->obstacles[k].x + data->obstacles[k].w > data->origin_x - data->psize) &&
+             (data->obstacles[k].y < data->origin_y + (int)data->y) ) {
+            data->playing = 0;
+        }
+        // check for obstacles going off screen
+        else if (data->obstacles[k].x < -data->obstacles[k].w) {
+            data->obstacle_start_idx = (data->obstacle_start_idx + 1) % NUM_OBSTACLES;
+        }
+    }
+
+    // update specks
+    count = data->speck_end_idx - data->speck_start_idx + (data->speck_end_idx < data->speck_start_idx ? NUM_SPECKS : 0);
+    int next = data->speck_end_idx == NUM_SPECKS - 1 ? 0 : data->speck_end_idx + 1;
+    if (count < NUM_SPECKS - 1) {
+        // add specks
+        if ((rand() % 20) < 1) {
+            data->specks[data->speck_end_idx].y = (rand() % (data->ground_height - (data->speck_size * 2))) + data->origin_y + data->speck_size;
+            data->specks[data->speck_end_idx].x = app->width;
+            data->speck_end_idx = (data->speck_end_idx + 1) % NUM_SPECKS;
+        }
+    }
+    for (int k = data->speck_start_idx; k != data->speck_end_idx; k = (k + 1) % NUM_SPECKS) {
+        // move specks
+        data->specks[k].x -= data->vx;
+
+        // check for specks going off screen
+        if (data->specks[k].x < -data->speck_size) {
+            data->speck_start_idx = (data->speck_start_idx + 1) % NUM_SPECKS;
+        }
+    }
+
+    // ******************* Draw Frame *******************
+
+    // draw score
+    if (redraw_score == 1) {
         char buffer[10];
-        sprintf(buffer, "%d", data->time/FRAMES_PER_SEC);
+        sprintf(buffer, "%d", data->score);
         DrawText(app, app->width/2, data->score_y, buffer);
+    }
+
+    // clear sky
+    XClearArea(app->display, app->window, 0, data->sky_y, app->width, data->sky_height, False);
+
+    // draw obstacles
+    for (int k = data->obstacle_start_idx; k != data->obstacle_end_idx; k = (k + 1) % NUM_OBSTACLES) {
+        if (data->obstacles[k].x < app->width) {
+            XFillRectangle(app->display, app->window, data->gc, data->obstacles[k].x, data->obstacles[k].y, data->obstacles[k].w, data->obstacles[k].h);
+        }
+    }
+
+    // clear ground
+    XClearArea(app->display, app->window, 0, data->ground_y, app->width, data->ground_height, False);
+
+    // draw specks
+    XSetForeground(app->display, data->gc, COMMENT_COLOR);
+    for (int k = data->speck_start_idx; k != data->speck_end_idx; k = (k + 1) % NUM_SPECKS) {
+        XFillRectangle(app->display, app->window, data->gc, data->specks[k].x, data->specks[k].y, data->speck_size, data->speck_size);
+    }
+    XSetForeground(app->display, data->gc, FG_COLOR);
+
+    // draw avatar
+    XFillRectangle(app->display, app->window, data->gc, data->origin_x - data->psize, data->origin_y + (int)data->y - data->psize, data->psize, data->psize);
+
+    // draw eyes
+    int eyes_y = data->origin_y + (int)data->y - data->eyes_y + (data->jump_state == 0 ? 0 : (data->vy > 0 ? data->speck_size : -data->speck_size));
+    XClearArea(app->display, app->window, data->eyes_x1, eyes_y, data->speck_size, data->eyes_height, False);
+    XClearArea(app->display, app->window, data->eyes_x2, eyes_y, data->speck_size, data->eyes_height, False);
+
+    // check for end of game
+    if (data->playing == 0) {
+        ShowStartMessage(app);
     }
 }
 
