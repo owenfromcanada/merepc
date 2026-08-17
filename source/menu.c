@@ -86,8 +86,8 @@ static void Init(AppType * app) {
     DrawLabel(app, data->offs_x + label_x, data->offs_y + label_y, "T");
     DrawPongIcon(app, data->offs_x + data->width + icon_offs_x + data->margin, data->offs_y + icon_offs_y, icon_size);
     DrawLabel(app, data->offs_x + data->width + data->margin + label_x, data->offs_y + label_y, "P");
-    DrawJumpIcon(app, data->offs_x + (data->width*2) + icon_offs_x + data->margin, data->offs_y + icon_offs_y, icon_size);
-    DrawLabel(app, data->offs_x + (data->width*2) + data->margin + label_x, data->offs_y + label_y, "J");
+    DrawJumpIcon(app, data->offs_x + ((data->width + data->margin)*2) + icon_offs_x, data->offs_y + icon_offs_y, icon_size);
+    DrawLabel(app, data->offs_x + ((data->width + data->margin)*2) + label_x, data->offs_y + label_y, "J");
 
     XSetForeground(app->display, data->gc, COMMENT_COLOR);
     XSetFont(app->display, data->gc, app->smallfont.id);
@@ -170,6 +170,16 @@ static void DrawJumpIcon(AppType * app, int x, int y, int w) {
     // creates a rectangular icon (20x14 "pixels")
     // x and y specify the upper left corner
     AppDataType * data = (AppDataType *)app->data;
+
+    int px = w/20; // "pixel" size for icon drawing
+    int offs_x = x + w - (px * 20);
+    int offs_y = y + w - (px * 14);
+
+    XFillRectangle(app->display, app->window, data->gc, offs_x, offs_y + (12*px), 20*px, 2*px);
+    XFillRectangle(app->display, app->window, data->gc, offs_x, offs_y, 8*px, 8*px);
+    XClearArea(app->display, app->window, offs_x + (4*px), offs_y + (3*px), px, 2*px, False);
+    XClearArea(app->display, app->window, offs_x + (6*px), offs_y + (3*px), px, 2*px, False);
+    XFillRectangle(app->display, app->window, data->gc, offs_x + (12*px), offs_y + (6*px), 6*px, 6*px);
 }
 
 static void DrawLabel(AppType * app, int x, int y, char * text) {
