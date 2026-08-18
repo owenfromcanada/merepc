@@ -21,12 +21,14 @@ You should have received a copy of the GNU General Public License along with Mer
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include "applications.h"
+#include "parameters.h"
 
 #define FRAMES_PER_SEC      60
 #define CLOCKS_PER_FRAME    (CLOCKS_PER_SEC/FRAMES_PER_SEC)
 #define HITS_PER_ACCEL      7
 #define MAX(a, b)           ((a) > (b) ? (a) : (b))
 #define MIN(a, b)           ((a) < (b) ? (a) : (b))
+#define NUM_PARAMETERS      1
 
 
 typedef struct {
@@ -56,6 +58,9 @@ typedef struct {
     int hits;
     int playing;
     clock_t clock;
+    ParameterType parameters[NUM_PARAMETERS];
+    int highscore;
+    int parameters_dirty;
 } AppDataType;
 
 static void Init(AppType * app);
@@ -64,11 +69,13 @@ static void Tick(AppType * app);
 static void EventHandler(AppType * app, XEvent * event);
 static void DrawText(AppType * app, int x, int y, char * text);
 static void ShowScore(AppType * app);
+static void ShowHighScore(AppType * app);
 static void ShowStartMessage(AppType * app);
-
 static void SetField(AppType * app);
 static void MovePaddle(AppType * app, int player, int pos);
 static void MoveBall(AppType * app, int x, int y);
+
+static const char PARAMETER_NAME[] = "Pong";
 
 const AppStaticType Pong = {
     Init,
@@ -80,6 +87,13 @@ const AppStaticType Pong = {
 static void Init(AppType * app) {
     app->data = malloc(sizeof(AppDataType));
     AppDataType * data = (AppDataType *)app->data;
+
+    data->parameters[0].key = "highscore";
+    data->parameters[0].type = TYPE_INT;
+    data->parameters[0].count = 1;
+    data->parameters[0].data = &data->highscore;
+    data->highscore = 0; // default value if no saved score exists
+    LoadParameters(PARAMETER_NAME, NUM_PARAMETERS, data->parameters);
 
     data->gc = XCreateGC(app->display, app->window, 0, 0);
     XSetForeground(app->display, data->gc, FG_COLOR);
@@ -120,18 +134,24 @@ static void Init(AppType * app) {
     XFillRectangle(app->display, app->window, data->gc, data->field_x1 - data->bsize, data->field_y1 - data->bsize, data->field_x2 - data->field_x1 + (data->bsize*2), data->bsize);
     XFillRectangle(app->display, app->window, data->gc, data->field_x1 - data->bsize, data->field_y2, data->field_x2 - data->field_x1 + (data->bsize*2), data->bsize);
     ShowStartMessage(app);
+    ShowHighScore(app);
 
     XSetForeground(app->display, data->gc, COMMENT_COLOR);
     XSetFont(app->display, data->gc, app->smallfont.id);
     char hints[] = "ESC: Menu";
     XDrawString(app->display, app->window, data->gc, app->smallfont.width, app->height - app->smallfont.height + app->smallfont.baseline_y, hints, strlen(hints));
     XSetForeground(app->display, data->gc, FG_COLOR);
+    XSetFont(app->display, data->gc, app->mediumfont.id);
 
     XFlush(app->display);
 }
 
 static void Destroy(AppType * app) {
     AppDataType * data = (AppDataType *)app->data;
+
+    if (data->parameters_dirty == 1) {
+        SaveParameters(PARAMETER_NAME, NUM_PARAMETERS, data->parameters);
+    }
 
     XFreeGC(app->display, data->gc);
     free(app->data);
@@ -223,6 +243,11 @@ static void Tick(AppType * app) {
             }
 
             if (data->playing == 0) {
+                if (data->hits > data->highscore) {
+                    data->highscore = data->hits;
+                    data->parameters_dirty = 1;
+                    ShowHighScore(app);
+                }
                 ShowStartMessage(app);
             }
 
@@ -274,6 +299,22 @@ static void ShowScore(AppType * app) {
     XClearArea(app->display, app->window, 0, 0, app->width, data->field_y1 - data->bsize, False);
     sprintf(buffer, "%d", data->hits);
     DrawText(app, app->width/2, data->msg_y, buffer);
+}
+
+static void ShowHighScore(AppType * app) {
+    AppDataType * data = (AppDataType *)app->data;
+
+    char buffer[30];
+    sprintf(buffer, "High Score: %d", data->highscore);
+
+    int w = strlen(buffer) * app->mediumfont.width;
+
+    XClearArea(app->display, app->window, app->width/2 - w/2, app->height * 19/20, w, app->height/20, False);
+    XSetForeground(app->display, data->gc, COMMENT_COLOR);
+    XSetFont(app->display, data->gc, app->smallfont.id);
+    XDrawString(app->display, app->window, data->gc, app->width/2 - w/2 + app->mediumfont.baseline_x, app->height - app->smallfont.height + app->smallfont.baseline_y, buffer, strlen(buffer));
+    XSetForeground(app->display, data->gc, FG_COLOR);
+    XSetFont(app->display, data->gc, app->mediumfont.id);
 }
 
 static void ShowStartMessage(AppType * app) {
