@@ -22,6 +22,7 @@ You should have received a copy of the GNU General Public License along with Mer
 #include <X11/keysym.h>
 #include "merepc.h"
 #include "applications.h"
+#include "parameters.h"
 
 
 static int Init(AppType * app, int w, int h);
@@ -145,6 +146,9 @@ static int Init(AppType * app, int w, int h) {
     app->smallfont.height = app->smallfont.font->max_bounds.ascent - app->smallfont.font->min_bounds.descent;
     app->smallfont.baseline_x = -app->smallfont.font->min_bounds.lbearing;
     app->smallfont.baseline_y = app->smallfont.font->max_bounds.ascent;
+
+    // initialize parameters
+    InitParameters();
 
     return 0;
 }
