@@ -20,7 +20,7 @@ You should have received a copy of the GNU General Public License along with Mer
 
 extern const AppStaticType Menu;
 extern const AppStaticType Typewriter;
-extern const AppStaticType Pong;
+extern const AppStaticType Paddle;
 extern const AppStaticType Jump;
 
 #endif

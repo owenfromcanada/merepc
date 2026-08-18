@@ -40,7 +40,7 @@ static void Destroy(AppType * app);
 static void Tick(AppType * app);
 static void EventHandler(AppType * app, XEvent * event);
 static void DrawTypewriterIcon(AppType * app, int x, int y, int w);
-static void DrawPongIcon(AppType * app, int x, int y, int w);
+static void DrawPaddleIcon(AppType * app, int x, int y, int w);
 static void DrawJumpIcon(AppType * app, int x, int y, int w);
 static void DrawLabel(AppType * app, int x, int y, char * text);
 
@@ -84,7 +84,7 @@ static void Init(AppType * app) {
 
     DrawTypewriterIcon(app, data->offs_x + icon_offs_x, data->offs_y + icon_offs_y, icon_size);
     DrawLabel(app, data->offs_x + label_x, data->offs_y + label_y, "T");
-    DrawPongIcon(app, data->offs_x + data->width + icon_offs_x + data->margin, data->offs_y + icon_offs_y, icon_size);
+    DrawPaddleIcon(app, data->offs_x + data->width + icon_offs_x + data->margin, data->offs_y + icon_offs_y, icon_size);
     DrawLabel(app, data->offs_x + data->width + data->margin + label_x, data->offs_y + label_y, "P");
     DrawJumpIcon(app, data->offs_x + ((data->width + data->margin)*2) + icon_offs_x, data->offs_y + icon_offs_y, icon_size);
     DrawLabel(app, data->offs_x + ((data->width + data->margin)*2) + label_x, data->offs_y + label_y, "J");
@@ -119,7 +119,7 @@ static void EventHandler(AppType * app, XEvent * event) {
             SwitchApp(app, &Typewriter);
         }
         else if (k == 'p') {
-            SwitchApp(app, &Pong);
+            SwitchApp(app, &Paddle);
         }
         else if (k == 'j') {
             SwitchApp(app, &Jump);
@@ -148,7 +148,7 @@ static void DrawTypewriterIcon(AppType * app, int x, int y, int w) {
     XFillRectangle(app->display, app->window, data->gc, offs_x + (6*px), offs_y + (9*px), 8*px, 2*px);
 }
 
-static void DrawPongIcon(AppType * app, int x, int y, int w) {
+static void DrawPaddleIcon(AppType * app, int x, int y, int w) {
     // creates a rectangular icon (20x14 "pixels")
     // x and y specify the upper left corner
     AppDataType * data = (AppDataType *)app->data;

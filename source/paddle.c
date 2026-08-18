@@ -75,9 +75,9 @@ static void SetField(AppType * app);
 static void MovePaddle(AppType * app, int player, int pos);
 static void MoveBall(AppType * app, int x, int y);
 
-static const char PARAMETER_NAME[] = "Pong";
+static const char PARAMETER_NAME[] = "Paddle";
 
-const AppStaticType Pong = {
+const AppStaticType Paddle = {
     Init,
     Destroy,
     Tick,
