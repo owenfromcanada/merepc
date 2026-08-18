@@ -18,6 +18,24 @@ MerePC is a Linux program.  It can be run on any distribution, but it particular
     * The system should always be recoverable by the user, even after mashing the keyboard
 * Lean enough to run on minimal or legacy hardware
 
+### Screenshots
+
+#### Main Menu
+
+<img src="screenshots/menu.png" alt="screenshot" width="400"/>
+
+#### Typewriter app
+
+<img src="screenshots/typewriter.png" alt="screenshot" width="400"/>
+
+#### Paddle app
+
+<img src="screenshots/paddle.png" alt="screenshot" width="400"/>
+
+#### Jump app
+
+<img src="screenshots/jump.png" alt="screenshot" width="400"/>
+
 ## Requirements
 
 * X11 or Xwayland
