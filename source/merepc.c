@@ -20,6 +20,7 @@ You should have received a copy of the GNU General Public License along with Mer
 #include <X11/Xlib.h>
 #include <X11/cursorfont.h>
 #include <X11/keysym.h>
+#include <X11/Xatom.h>
 #include "merepc.h"
 #include "applications.h"
 #include "parameters.h"
@@ -101,6 +102,16 @@ static int Init(AppType * app, int w, int h) {
     attributes.background_pixel = BG_COLOR;
 
     app->window = XCreateWindow(app->display, root, 0, 0, app->width, app->height, 0, CopyFromParent, CopyFromParent, CopyFromParent, attributemask, &attributes);
+
+    // set window name
+    XStoreName(app->display, app->window, "MerePC");
+
+    // fullscreen
+    Atom wm_state = XInternAtom(app->display, "_NET_WM_STATE", 1);
+    Atom wm_fullscreen = XInternAtom(app->display, "_NET_WM_STATE_FULLSCREEN", 1);
+    if (wm_state != None && wm_fullscreen != None) {
+        XChangeProperty(app->display, app->window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char *)&wm_fullscreen, 1);
+    }
 
     XSelectInput(app->display, app->window, StructureNotifyMask);
 
