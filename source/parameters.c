@@ -48,12 +48,12 @@ void LoadParameters(const char * name, int parametercount, ParameterType * param
     while (!feof(fp)) {
         // read line
         for (int lineidx = 0; lineidx < MAX_LINE_LEN - 1; lineidx++) {
-            char c = fgetc(fp);
+            int c = fgetc(fp);
             if (c == '\n' || c == EOF) {
                 linebuf[lineidx] = 0;
                 break;
             }
-            linebuf[lineidx] = c;
+            linebuf[lineidx] = (char)c;
         }
 
         // read line elements
